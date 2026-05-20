@@ -14,8 +14,10 @@ Use `uv` as the only Python environment manager for this skill.
 1. Create environment: `uv venv`
 2. Install dependencies in project scope: `uv pip install -r requirements.txt`
 3. Run localization with environment isolation: `uv run python scripts/localize.py <input_file>`
-4. Set `OPENAI_API_KEY` before running translation.
-5. Use `uv run python scripts/rename_output.py <input_file> --print-only` when only path computation is needed.
+4. Run agent pipeline mode: `uv run python scripts/agent_pipeline.py <input_file> --emit-report`
+5. For large PDFs, test first pages only: `uv run python scripts/agent_pipeline.py <input_file> --max-pages 3 --emit-report`
+6. Set `OPENAI_API_KEY` before running translation.
+7. Use `uv run python scripts/rename_output.py <input_file> --print-only` when only path computation is needed.
 
 ## Universal Architecture
 
@@ -109,5 +111,6 @@ Keep this contract for all formats:
 
 Use `scripts/localize.py` for actual translation output.  
 Use `scripts/rename_output.py` only for output naming or file bootstrap behavior.
+Use `scripts/agent_pipeline.py` when you need Coordinator/Translator/QA flow.
 
 Read `references/universal-design.md` before implementing new format handlers or changing mapping logic.

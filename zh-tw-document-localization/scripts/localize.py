@@ -9,6 +9,7 @@ from typing import Iterable
 
 import fitz  # pymupdf
 from docx import Document
+from dotenv import load_dotenv
 from openai import OpenAI
 from pptx import Presentation
 
@@ -145,9 +146,14 @@ def localize_pptx(src: Path, out: Path, tr: Translator) -> None:
     prs.save(str(out))
 
 
-def localize_pdf(src: Path, out: Path, tr: Translator) -> None:
+def localize_pdf(src: Path, out: Path, tr: Translator, max_pages: int | None = None) -> None:
     doc = fitz.open(str(src))
-    for page in doc:
+    total_pages = len(doc)
+    pages_to_process = total_pages if max_pages is None else min(max_pages, total_pages)
+
+    for page_idx in range(pages_to_process):
+        page = doc[page_idx]
+        print(f"Processing page {page_idx + 1}/{pages_to_process}...", flush=True)
         data = page.get_text("dict")
         spans_to_replace: list[dict] = []
         for block in data.get("blocks", []):
@@ -190,11 +196,22 @@ def localize_pdf(src: Path, out: Path, tr: Translator) -> None:
 
 
 def main() -> int:
+    load_dotenv()
     parser = argparse.ArgumentParser(
         description="Localize PDF/Markdown/DOCX/PPTX into Taiwan Traditional Chinese."
     )
     parser.add_argument("input_file", help="Input file path")
-    parser.add_argument("--model", default="gpt-4.1-mini", help="OpenAI model name")
+    parser.add_argument(
+        "--model",
+        default=None,
+        help="OpenAI model name. If omitted, use OPENAI_MODEL or fallback default.",
+    )
+    parser.add_argument(
+        "--max-pages",
+        type=int,
+        default=None,
+        help="Only process the first N pages for PDF. Ignored for non-PDF.",
+    )
     args = parser.parse_args()
 
     src = Path(args.input_file).resolve()
@@ -202,7 +219,8 @@ def main() -> int:
         raise FileNotFoundError(f"Input not found: {src}")
 
     out = make_output_path(src)
-    tr = Translator(model=args.model)
+    model = args.model or os.getenv("OPENAI_MODEL", "gpt-4.1-mini")
+    tr = Translator(model=model)
 
     ext = src.suffix.lower()
     if ext == ".md":
@@ -212,7 +230,7 @@ def main() -> int:
     elif ext == ".pptx":
         localize_pptx(src, out, tr)
     elif ext == ".pdf":
-        localize_pdf(src, out, tr)
+        localize_pdf(src, out, tr, max_pages=args.max_pages)
     else:
         raise ValueError(f"Unsupported format: {ext}. Supported: .pdf .md .docx .pptx")
 
@@ -222,4 +240,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-
