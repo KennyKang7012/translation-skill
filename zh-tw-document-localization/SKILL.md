@@ -11,13 +11,15 @@ Localize documents into Taiwan Traditional Chinese with a generic, format-adapte
 
 Use `uv` for Python environment management.
 
-1. Install dependencies: `uv sync`
-2. Set credentials: `OPENAI_API_KEY`
-3. Optionally set default model: `OPENAI_MODEL`
-4. Run deterministic localization: `uv run python scripts/localize.py <input_file>`
-5. Run agent workflow with report: `uv run python scripts/agent_pipeline.py <input_file> --emit-report`
-6. Limit PDF test scope: `uv run python scripts/agent_pipeline.py <input_file> --max-pages 3 --emit-report`
-7. Compute the output path only: `uv run python scripts/rename_output.py <input_file> --print-only`
+1. Enter the skill folder: `cd zh-tw-document-localization`
+2. Create the virtual environment: `uv venv`
+3. Install and sync dependencies: `uv sync`
+4. Set credentials: `OPENAI_API_KEY`
+5. Optionally set default model: `OPENAI_MODEL`
+6. Run deterministic localization: `uv run python scripts/localize.py <input_file>`
+7. Run agent workflow with report: `uv run python scripts/agent_pipeline.py <input_file> --emit-report`
+8. Limit PDF test scope: `uv run python scripts/agent_pipeline.py <input_file> --max-pages 3 --emit-report`
+9. Compute the output path only: `uv run python scripts/rename_output.py <input_file> --print-only`
 
 ## Core Contract
 
@@ -99,4 +101,5 @@ Generate or inspect a report for non-trivial files.
 Use `scripts/localize.py` for direct localization.  
 Use `scripts/agent_pipeline.py` for coordinator/translator/QA reporting.  
 Use `scripts/rename_output.py` only for deterministic filename generation or bootstrap copying.  
-Read `references/universal-design.md` before changing adapter contracts or source-to-target mapping logic.
+Read `references/format-notes.md` when choosing the safest implementation path for a file format.  
+Read `references/universal-design.md` only before changing adapter contracts, anchor strategy, reinjection rules, or source-to-target mapping logic.
