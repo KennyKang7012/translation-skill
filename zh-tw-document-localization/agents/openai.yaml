@@ -1,0 +1,5 @@
+version: 1
+interface:
+  display_name: Zh-TW Document Localization
+  short_description: Localize PDF/Markdown/DOCX/PPTX to Taiwan Traditional Chinese while preserving layout fidelity.
+  default_prompt: Translate this document to Taiwan Traditional Chinese with no layout or image-position changes, then output as basename.zh-tw.ext.
