@@ -1,116 +1,102 @@
 ---
 name: zh-tw-document-localization
-description: Translate user-provided files into Taiwan Traditional Chinese while preserving original layout, image positions, and visual style. Use when handling PDF, Markdown, DOCX, or PPTX localization requests that require high-fidelity output and deterministic zh-tw filename suffixing.
+description: Translate arbitrary user-provided PDF, Markdown, DOCX, or PPTX files into Taiwan Traditional Chinese while preserving layout, images, styling, structural anchors, and deterministic .zh-tw output filenames. Use for high-fidelity document localization, template-agnostic translation workflows, and QA-reportable source-to-target mapping.
 ---
 
 # zh-tw Document Localization
 
-Follow this workflow to localize documents into Taiwan Traditional Chinese without changing structure or design.
+Localize documents into Taiwan Traditional Chinese with a generic, format-adapter workflow. Treat every input as an unknown template: inspect structure first, preserve anchors, and write translated text back only through stable source positions.
 
-## Environment (uv)
+## Runtime
 
-Use `uv` as the only Python environment manager for this skill.
+Use `uv` for Python environment management.
 
-1. Create environment: `uv venv`
-2. Install dependencies in project scope: `uv pip install -r requirements.txt`
-3. Run localization with environment isolation: `uv run python scripts/localize.py <input_file>`
-4. Run agent pipeline mode: `uv run python scripts/agent_pipeline.py <input_file> --emit-report`
-5. For large PDFs, test first pages only: `uv run python scripts/agent_pipeline.py <input_file> --max-pages 3 --emit-report`
-6. Set `OPENAI_API_KEY` before running translation.
-7. Use `uv run python scripts/rename_output.py <input_file> --print-only` when only path computation is needed.
+1. Install dependencies: `uv sync`
+2. Set credentials: `OPENAI_API_KEY`
+3. Optionally set default model: `OPENAI_MODEL`
+4. Run deterministic localization: `uv run python scripts/localize.py <input_file>`
+5. Run agent workflow with report: `uv run python scripts/agent_pipeline.py <input_file> --emit-report`
+6. Limit PDF test scope: `uv run python scripts/agent_pipeline.py <input_file> --max-pages 3 --emit-report`
+7. Compute the output path only: `uv run python scripts/rename_output.py <input_file> --print-only`
 
-## Universal Architecture
+## Core Contract
 
-Use a format-agnostic pipeline with per-format adapters.
+Every format adapter must use the same logical pipeline:
 
-1. Extract: collect translatable units and preserve structural metadata.
-2. Segment: split text into stable translation units without breaking structure.
-3. Anchor: assign immutable anchor IDs for each unit (page/slide/paragraph/run/cell).
-4. Translate: produce zh-tw text per anchor ID.
-5. Reinject: write translations back to the exact original anchor location.
-6. Verify: run structure, visual, and completeness checks before output.
+1. Extract translatable units from the source file.
+2. Assign a stable structural `anchor_id` to each unit.
+3. Preserve nearby context, style, geometry, and locked tokens.
+4. Translate only the unit text.
+5. Reinsert translated text at the original anchor.
+6. Validate structure, output filename, and localization completeness.
 
-Keep this contract for all formats:
+Use this generic record shape for all formats:
 
-- `anchor_id`: unique position key in source structure
-- `source_text`: original text
-- `target_text`: translated zh-tw text
-- `context`: nearby metadata for disambiguation
-- `flags`: non-translatable markers (code, URL, path, term lock)
+```text
+anchor_id: source-position key, not derived from text alone
+source_text: original text
+target_text: translated zh-TW text
+container_path: page/slide/paragraph/shape/cell path
+style_hint: font, size, color, alignment, or syntax metadata
+geometry: page rectangle, shape bounds, table cell, or null
+flags: code, url, path, product_name, glossary_lock, non_translatable
+```
 
-## Output Rules
+## Universal Rules
 
-1. Keep page layout, spacing, image coordinates, table geometry, font hierarchy, and color palette unchanged.
-2. Translate text content only.
-3. Name output files as `original_basename.zh-tw.ext`.
-4. Never overwrite source files.
+1. Never hardcode behavior for a specific file, title, product, page number, template, or brand.
+2. Never map translations by source text alone; repeated text must be resolved by `anchor_id`.
+3. Never overwrite the source file.
+4. Always output as `basename.zh-tw.ext`.
+5. Preserve images, object positions, visual hierarchy, tables, links, and non-text assets.
+6. Preserve locked tokens such as URLs, file paths, commands, code, API names, model names, product names, and glossary terms.
+7. Prefer failing with a report over silently dropping text.
 
-## Format Workflow
+## Format Adapters
 
-### Markdown (.md)
+### Markdown
 
-1. Preserve Markdown syntax, heading levels, code fences, links, image paths, and frontmatter keys.
-2. Translate prose only; keep code blocks and inline code unchanged unless the user asks otherwise.
-3. Preserve table alignment markers, list indentation depth, and reference-style link IDs.
-3. Save as `*.zh-tw.md`.
+Translate prose while preserving Markdown structure. Keep code fences, inline code, frontmatter keys, links, image paths, table alignment markers, list indentation, and reference identifiers intact.
 
-### DOCX (.docx)
+### DOCX
 
-1. Edit existing paragraphs/runs in-place instead of recreating the document.
-2. Preserve styles, section breaks, headers/footers, page numbers, comments, tracked elements, and embedded objects.
-3. Do not delete/reinsert images or tables.
-4. Preserve run boundaries when possible to avoid style leakage.
-4. Save as `*.zh-tw.docx`.
+Translate text in place using document structure. Preserve paragraphs, runs when possible, styles, tables, headers, footers, section breaks, page numbers, comments, embedded media, and document relationships.
 
-### PPTX (.pptx)
+### PPTX
 
-1. Translate shape text in-place slide by slide.
-2. Keep slide masters, theme colors, animations, object IDs, and z-order unchanged.
-3. Do not move or resize images/charts/shapes.
-4. Keep speaker notes, grouped shapes text order, and table cell coordinates unchanged.
-4. Save as `*.zh-tw.pptx`.
+Translate shape, text frame, table cell, and speaker-note text in place. Preserve slide masters, layouts, theme colors, animations, grouping, z-order, object IDs, charts, images, and shape geometry.
 
-### PDF (.pdf)
+### PDF
 
-1. First choose a fidelity-first route:
-   - If editable source exists, translate source format and export back to PDF.
-   - If source is unavailable, use OCR/text-layer replacement while keeping original page geometry.
-2. Keep the same page size, margins, image positions, and color appearance.
-3. Preserve reading order anchors by page + block + line index.
-3. Save as `*.zh-tw.pdf`.
+Use the least destructive route available.
 
-## Precision Mapping Rules
+1. If editable source exists, translate the editable source and export to PDF.
+2. If only PDF is available, use page/block/line/span anchors.
+3. Repaint removed text using sampled local background color, not a fixed fill.
+4. Fit translated text inside the original bounding box when possible.
+5. Record fallback placement, overflow, or missing-font behavior in the report.
 
-1. Never map by text content alone; map by structural anchor first.
-2. If duplicate source strings exist, distinguish by anchor path (page/slide/paragraph index).
-3. Prevent overflow regressions:
-   - allow line reflow only inside the original text container
-   - never expand container dimensions automatically
-4. If target text does not fit, apply constrained fallback in order:
-   - terminology shortening
-   - punctuation compaction
-   - controlled font-size reduction within allowed tolerance
-5. Track all fallback decisions in a change log section of run output.
+## Translation Rules
 
-## Translation Conventions (Taiwan)
+1. Use natural Taiwan Traditional Chinese.
+2. Keep product names and technical identifiers stable unless a glossary explicitly says otherwise.
+3. Keep numbering, citations, references, formulas, URLs, CLI flags, and file paths unchanged.
+4. Maintain terminology consistency across the document.
+5. Use concise wording when the target container has limited space.
 
-1. Use Taiwan Traditional Chinese terms and punctuation.
-2. Preserve product names, API names, commands, and file paths.
-3. Keep numbering, references, URLs, and citation anchors stable.
-4. Keep glossary consistency across the full file.
+## QA Requirements
 
-## QA Checklist
+Generate or inspect a report for non-trivial files.
 
-1. Visual diff check: no image displacement, no theme drift, no structural collapse.
-2. Semantic check: no missing paragraphs, list items, table cells, or speaker notes.
-3. Filename check: confirm exact `basename.zh-tw.ext` pattern.
-4. Encoding check: ensure readable Traditional Chinese output.
-5. Anchor completeness check: translated anchor count must equal extracted anchor count.
+1. Verify extracted anchor count, translated count, skipped count, failed count, and QA revision count.
+2. Confirm no required anchor was skipped without explanation.
+3. Confirm filename follows `basename.zh-tw.ext`.
+4. Confirm output opens successfully.
+5. For visual formats, inspect at least a representative page or slide before treating the run as complete.
 
-## Helper Script
+## Resources
 
-Use `scripts/localize.py` for actual translation output.  
-Use `scripts/rename_output.py` only for output naming or file bootstrap behavior.
-Use `scripts/agent_pipeline.py` when you need Coordinator/Translator/QA flow.
-
-Read `references/universal-design.md` before implementing new format handlers or changing mapping logic.
+Use `scripts/localize.py` for direct localization.  
+Use `scripts/agent_pipeline.py` for coordinator/translator/QA reporting.  
+Use `scripts/rename_output.py` only for deterministic filename generation or bootstrap copying.  
+Read `references/universal-design.md` before changing adapter contracts or source-to-target mapping logic.
